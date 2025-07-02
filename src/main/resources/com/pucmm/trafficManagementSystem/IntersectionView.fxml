@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<?import javafx.geometry.Insets?>
+<?import java.net.URL?>
 <?import javafx.scene.control.Button?>
 <?import javafx.scene.control.ComboBox?>
 <?import javafx.scene.control.Label?>
@@ -8,31 +8,38 @@
 <?import javafx.scene.layout.HBox?>
 <?import javafx.scene.layout.Pane?>
 <?import javafx.scene.layout.VBox?>
-<?import javafx.scene.shape.Rectangle?>
 
 <AnchorPane prefHeight="720.0" prefWidth="1080.0" xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.pucmm.trafficManagementSystem.controller.IntersectionController">
-   <children>
-      <Pane fx:id="simulationPane" layoutX="269.0" prefHeight="720.0" prefWidth="811.0" style="-fx-background-color: #bdc3c7;" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="269.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
-         <children>
-            <Rectangle fill="#7f8c8d" height="280.0" layoutX="285.0" width="240.0" />
-            <Rectangle fill="#7f8c8d" height="720.0" layoutX="285.0" layoutY="280.0" width="240.0" />
-            <Rectangle fill="#7f8c8d" height="240.0" layoutY="240.0" width="811.0" />
-         </children>
-      </Pane>
-      <VBox prefHeight="720.0" prefWidth="269.0" spacing="10.0" style="-fx-background-color: #34495e;" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.topAnchor="0.0">
-         <children>
-            <Label text="Control de Simulación" textFill="white" />
-            <Label text="Tipo de Vehículo:" textFill="white" />
-            <ComboBox fx:id="typeComboBox" prefWidth="150.0" />
-            <Label text="Origen:" textFill="white" />
-            <ComboBox fx:id="originComboBox" prefWidth="150.0" />
-            <Label text="Destino:" textFill="white" />
-            <ComboBox fx:id="destinationComboBox" prefWidth="150.0" />
-            <Button fx:id="addVehicleButton" mnemonicParsing="false" onAction="#addVehicle" text="Añadir Vehículo" />
-         </children>
-         <padding>
-            <Insets bottom="10.0" left="10.0" right="10.0" top="10.0" />
-         </padding>
-      </VBox>
-   </children>
+    
+    <stylesheets>
+        <URL value="@styles.css" />
+    </stylesheets>
+
+    <children>
+        <Pane fx:id="simulationPane" style="-fx-background-color: #2c3e50;" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="280.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0" />
+      
+        <VBox prefWidth="280.0" styleClass="control-panel" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.topAnchor="0.0">
+            <children>
+                <Label styleClass="title-label" text="Control de Simulación" />
+                
+                <Label text="Tipo de Vehículo" />
+                <ComboBox fx:id="typeComboBox" maxWidth="1.7976931348623157E308" />
+                
+                <Label text="Origen" />
+                <ComboBox fx:id="originComboBox" maxWidth="1.7976931348623157E308" />
+                
+                <Label text="Destino" />
+                <ComboBox fx:id="destinationComboBox" maxWidth="1.7976931348623157E308" />
+                
+                <Pane VBox.vgrow="ALWAYS" />
+                
+                <VBox spacing="10.0">
+                    <children>
+                        <Button fx:id="addVehicleButton" onAction="#addVehicle" styleClass="button-primary" text="AÑADIR" HBox.hgrow="ALWAYS" maxWidth="1.7976931348623157E308" />
+                        <Button fx:id="addMultipleButton" onAction="#addMultipleVehicles" styleClass="button-primary" text="AÑADIR LOTE" HBox.hgrow="ALWAYS" maxWidth="1.7976931348623157E308" />
+                    </children>
+                </VBox>
+            </children>
+        </VBox>
+    </children>
 </AnchorPane>

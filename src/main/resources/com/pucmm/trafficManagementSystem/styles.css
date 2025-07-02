@@ -1,0 +1,65 @@
+/* Archivo: styles.css */
+
+/* Estilo base para los paneles principales con fondo oscuro */
+.control-panel {
+    -fx-background-color: #0d1b2a; /* Fondo azul oscuro principal */
+    -fx-padding: 24px;
+    -fx-spacing: 12px;
+}
+
+/* Estilo para los títulos principales de cada vista */
+.title-label {
+    -fx-font-size: 22px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #e0e1dd; /* Un blanco suave */
+    -fx-padding: 0 0 16px 0; /* Espacio extra debajo del título */
+}
+
+/* Estilo general para las etiquetas (labels) */
+.label {
+    -fx-font-size: 14px;
+    -fx-text-fill: #a9b4c2; /* Un gris azulado para texto secundario */
+}
+
+/* Estilo para los ComboBox (menús desplegables) */
+.combo-box {
+    -fx-background-color: #1b263b;
+    -fx-border-color: #415a77;
+    -fx-border-width: 1px;
+    -fx-border-radius: 4px;
+    -fx-background-radius: 4px;
+    -fx-font-size: 14px;
+}
+.combo-box .list-cell {
+    -fx-text-fill: #e0e1dd;
+    -fx-background-color: #1b263b;
+}
+.combo-box .list-cell:hover {
+    -fx-background-color: #415a77;
+}
+.combo-box-popup .list-view {
+    -fx-background-color: #1b263b;
+}
+
+/* Estilo principal para el botón, inspirado en MUI */
+.button-primary {
+    -fx-background-color: #3a86ff; /* Un azul vibrante como color de acento */
+    -fx-text-fill: white;
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+    -fx-padding: 12px 24px; /* Más padding horizontal */
+    -fx-background-radius: 4px;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.2), 10, 0.5, 0, 2); /* Sombra sutil */
+}
+
+/* Efecto al pasar el mouse por encima del botón */
+.button-primary:hover {
+    -fx-background-color: #0069ff;
+    -fx-cursor: hand;
+}
+
+/* Efecto al presionar el botón */
+.button-primary:pressed {
+    -fx-background-color: #0052cc;
+    -fx-effect: none;
+}

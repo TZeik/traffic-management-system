@@ -1,20 +1,26 @@
 package com.pucmm.trafficManagementSystem.model;
 
-import java.util.concurrent.atomic.AtomicInteger;
-
+import com.pucmm.trafficManagementSystem.controller.IntersectionController;
 import com.pucmm.trafficManagementSystem.enums.Direction;
 import com.pucmm.trafficManagementSystem.enums.VehicleType;
+import javafx.geometry.Point2D;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class Vehicle implements Runnable {
-    private static final AtomicInteger idCounter = new AtomicInteger(0); // Para generar IDs únicos
-
+    private static final AtomicInteger idCounter = new AtomicInteger(0);
     private final int id;
     private final VehicleType type;
     private final Direction origin;
     private final Direction destination;
     private final Intersection intersection;
-    private double x, y;
     private long arrivalTime;
+    private double x, y;
+    private volatile boolean finished = false;
+    private final double normalSpeed = 2.0;
+    private final double emergencyClearSpeed = 4.0;
+
+    private IntersectionController controller;
 
     public Vehicle(VehicleType type, Direction origin, Direction destination, Intersection intersection) {
         this.id = idCounter.incrementAndGet();
@@ -27,77 +33,87 @@ public class Vehicle implements Runnable {
     @Override
     public void run() {
         try {
-            // 1. Simula el viaje hacia la intersección
-            moveToStopLine();
-            System.out.printf("🚗 Vehículo %d (%s) desde %s se aproxima a la intersección.\n", this.id, this.type,
-                    this.origin);
-            Thread.sleep((long) (Math.random() * 3000) + 1000); // Tiempo de viaje aleatorio
-            this.arrivalTime = System.currentTimeMillis();
-            intersection.requestCross(this);
-            // 2. Llega a la intersección y registra su tiempo de llegada
-            moveOffScreen();
-            this.arrivalTime = System.currentTimeMillis();
-            System.out.printf("🛑 Vehículo %d (%s) ha LLEGADO a la intersección desde %s y está esperando.\n", this.id,
-                    this.type, this.origin);
+            intersection.addToQueue(this);
 
-            // 3. Solicita cruzar y espera a que la intersección le dé permiso
-            intersection.requestCross(this);
+            List<Point2D> path = controller.getPath(origin, destination);
+            if (path.isEmpty()) {
+                this.finished = true;
+                return;
+            }
 
-            // 4. Una vez que el método anterior termina, el vehículo ha cruzado
-            System.out.printf("✅ Vehículo %d (%s) ha CRUZADO la intersección. Destino: %s\n", this.id, this.type,
-                    this.destination);
+            Point2D baseStopPoint = path.get(1);
+            this.arrivalTime = System.currentTimeMillis();
+
+            while (true) {
+                if (intersection.isMyTurn(this)) {
+                    break;
+                }
+                Point2D currentTarget = getDynamicStopPoint(baseStopPoint);
+                if (distanceTo(currentTarget) > 1.0) {
+                    System.out.printf(">> Vehículo %d moviéndose hacia adelante en la fila...\n", this.id);
+                    moveTo(currentTarget);
+                }
+                Thread.sleep(200);
+            }
+
+            intersection.startCrossing(this);
+
+            for (int i = 1; i < path.size(); i++) {
+                moveTo(path.get(i));
+            }
 
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            System.err.printf("El vehículo %d fue interrumpido.\n", this.id);
+        } finally {
+            intersection.leaveIntersection(this);
+            this.finished = true;
+            System.out.printf("🏁 Vehículo %d ha salido de la intersección.\n", this.id);
         }
     }
 
-    private void moveToStopLine() throws InterruptedException {
-        // Aquí iría la lógica de animación, moviendo el vehículo pixel por pixel
-        // Por simplicidad, por ahora solo teletransportamos.
-        // En una versión avanzada, harías un bucle que actualiza X/Y y duerme un poco.
-        switch (this.origin) {
+    private void moveTo(Point2D target) throws InterruptedException {
+        // Decide qué velocidad usar para este tramo
+        double currentSpeed = this.normalSpeed;
+        if (intersection.isEmergencyActive() && this.type != VehicleType.EMERGENCY) {
+            currentSpeed = this.emergencyClearSpeed;
+        }
+
+        while (distanceTo(target) > currentSpeed) {
+            double angle = Math.atan2(target.getY() - y, target.getX() - x);
+            x += currentSpeed * Math.cos(angle);
+            y += currentSpeed * Math.sin(angle);
+            Thread.sleep(16);
+        }
+        x = target.getX();
+        y = target.getY();
+    }
+    
+    private Point2D getDynamicStopPoint(Point2D baseStopLine) {
+        int positionInQueue = intersection.getPositionInQueue(this);
+        double vehicleSpacing = 30.0;
+        double offset = positionInQueue * vehicleSpacing;
+
+        switch (origin) {
             case NORTH:
-                setPosition(405, 200);
-                break;
+                return new Point2D(baseStopLine.getX(), baseStopLine.getY() - offset);
             case SOUTH:
-                setPosition(405, 520);
-                break;
+                return new Point2D(baseStopLine.getX(), baseStopLine.getY() + offset);
             case EAST:
-                setPosition(555, 360);
-                break;
+                return new Point2D(baseStopLine.getX() + offset, baseStopLine.getY());
             case WEST:
-                setPosition(265, 360);
-                break;
+                return new Point2D(baseStopLine.getX() - offset, baseStopLine.getY());
             default:
                 break;
         }
-        Thread.sleep(1000); // Simula tiempo de viaje
+        return baseStopLine;
     }
 
-    private void moveOffScreen() throws InterruptedException {
-        // Simula el vehículo saliendo de la vista
-        // Por simplicidad, lo movemos a una coordenada lejana.
-        setPosition(-100, -100);
-        Thread.sleep(1000);
+    private double distanceTo(Point2D target) {
+        return Math.sqrt(Math.pow(target.getX() - x, 2) + Math.pow(target.getY() - y, 2));
     }
 
-    // Getters para que la Intersection pueda leer las propiedades del vehículo
     public int getId() {
         return id;
-    }
-
-    public VehicleType getType() {
-        return type;
-    }
-
-    public Direction getOrigin() {
-        return origin;
-    }
-
-    public long getArrivalTime() {
-        return arrivalTime;
     }
 
     public double getX() {
@@ -108,14 +124,32 @@ public class Vehicle implements Runnable {
         return y;
     }
 
-    // Setters para recalibrar la posicion
     public void setPosition(double x, double y) {
         this.x = x;
         this.y = y;
     }
 
-    @Override
-    public String toString() {
-        return String.format("Vehículo %d [%s]", id, type);
+    public boolean isFinished() {
+        return finished;
+    }
+
+    public VehicleType getType() {
+        return type;
+    }
+
+    public Direction getOrigin() {
+        return origin;
+    }
+
+    public Direction getDestinarion() {
+        return destination;
+    }
+
+    public long getArrivalTime() {
+        return arrivalTime;
+    }
+
+    public void setController(IntersectionController controller) {
+        this.controller = controller;
     }
 }
