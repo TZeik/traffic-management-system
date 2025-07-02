@@ -17,8 +17,8 @@ public class Vehicle implements Runnable {
     private long arrivalTime;
     private double x, y;
     private volatile boolean finished = false;
-    private final double normalSpeed = 2.0;
-    private final double emergencyClearSpeed = 4.0;
+    private final double normalSpeed = 1.2;
+    private final double emergencyClearSpeed = 1.4;
 
     private IntersectionController controller;
 

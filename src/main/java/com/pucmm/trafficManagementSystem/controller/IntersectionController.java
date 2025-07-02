@@ -91,13 +91,13 @@ public class IntersectionController {
         streetGroup.getChildren().addAll(hLine, vLine);
 
         streetGroup.getChildren()
-                .add(createStopSign(width / 2 + streetWidth / 2 + 15, height / 2 - streetWidth / 2 - 45, 90)); // East
+                .add(createStopSign(width / 2 + streetWidth / 2 + 45, height / 2 - streetWidth / 2 - 45, -90)); // East
         streetGroup.getChildren()
-                .add(createStopSign(width / 2 - streetWidth / 2 - 15, height / 2 + streetWidth / 2 + 45, -90)); // West
+                .add(createStopSign(width / 2 - streetWidth / 2 - 45, height / 2 + streetWidth / 2 + 45, 90)); // West
         streetGroup.getChildren()
-                .add(createStopSign(width / 2 - streetWidth / 2 - 45, height / 2 - streetWidth / 2 - 15, 0)); // North
+                .add(createStopSign(width / 2 - streetWidth / 2 - 45, height / 2 - streetWidth / 2 - 45, 180)); // North
         streetGroup.getChildren()
-                .add(createStopSign(width / 2 + streetWidth / 2 + 45, height / 2 + streetWidth / 2 + 15, 180)); // South
+                .add(createStopSign(width / 2 + streetWidth / 2 + 45, height / 2 + streetWidth / 2 + 45, 0)); // South
     }
 
     private Group createStopSign(double x, double y, double angle) {
@@ -110,12 +110,19 @@ public class IntersectionController {
         octagon.setStrokeWidth(2);
 
         Text text = new Text("STOP");
-        text.setFont(Font.font("Arial BOLD", 12 * scale));
+        text.setFont(Font.font("Arial BOLD", 16 * scale));
         text.setFill(Color.WHITE);
-        text.setX(7 * scale);
+        text.setX(10 * scale);
         text.setY(37 * scale);
 
-        Group sign = new Group(octagon, text);
+        Rectangle pole = new Rectangle();
+        pole.setX(28 * scale);
+        pole.setY(60 * scale);
+        pole.setWidth(4 * scale);
+        pole.setHeight(40 * scale);
+        pole.setFill(Color.LIGHTGRAY);
+
+        Group sign = new Group(octagon, text, pole);
         sign.relocate(x - 30 * scale, y - 30 * scale);
         sign.getTransforms().add(new Rotate(angle, 30 * scale, 30 * scale));
         return sign;
