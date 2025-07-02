@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.ComboBox?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.layout.AnchorPane?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.Pane?>
+<?import javafx.scene.layout.VBox?>
+<?import javafx.scene.shape.Rectangle?>
+
+<AnchorPane prefHeight="720.0" prefWidth="1080.0" xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.pucmm.trafficManagementSystem.controller.IntersectionController">
+   <children>
+      <Pane fx:id="simulationPane" layoutX="269.0" prefHeight="720.0" prefWidth="811.0" style="-fx-background-color: #bdc3c7;" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="269.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
+         <children>
+            <Rectangle fill="#7f8c8d" height="280.0" layoutX="285.0" width="240.0" />
+            <Rectangle fill="#7f8c8d" height="720.0" layoutX="285.0" layoutY="280.0" width="240.0" />
+            <Rectangle fill="#7f8c8d" height="240.0" layoutY="240.0" width="811.0" />
+         </children>
+      </Pane>
+      <VBox prefHeight="720.0" prefWidth="269.0" spacing="10.0" style="-fx-background-color: #34495e;" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.topAnchor="0.0">
+         <children>
+            <Label text="Control de Simulación" textFill="white" />
+            <Label text="Tipo de Vehículo:" textFill="white" />
+            <ComboBox fx:id="typeComboBox" prefWidth="150.0" />
+            <Label text="Origen:" textFill="white" />
+            <ComboBox fx:id="originComboBox" prefWidth="150.0" />
+            <Label text="Destino:" textFill="white" />
+            <ComboBox fx:id="destinationComboBox" prefWidth="150.0" />
+            <Button fx:id="addVehicleButton" mnemonicParsing="false" onAction="#addVehicle" text="Añadir Vehículo" />
+         </children>
+         <padding>
+            <Insets bottom="10.0" left="10.0" right="10.0" top="10.0" />
+         </padding>
+      </VBox>
+   </children>
+</AnchorPane>

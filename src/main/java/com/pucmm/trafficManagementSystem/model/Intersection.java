@@ -12,7 +12,8 @@ import com.pucmm.trafficManagementSystem.enums.VehicleType;
 
 public class Intersection {
     // Un Lock para controlar el acceso a la zona crítica (el cruce).
-    private final ReentrantLock lock = new ReentrantLock(true); // 'true' para modo justo
+    private final ReentrantLock lock = new ReentrantLock(true);
+
     // Una "condition variable" para que los hilos esperen eficientemente.
     private final Condition canCross = lock.newCondition();
 
@@ -27,7 +28,7 @@ public class Intersection {
     }
 
     /**
-     * El método principal que los vehículos llaman para cruzar.
+     * Método principal que los vehículos llaman para cruzar.
      */
     public void requestCross(Vehicle vehicle) throws InterruptedException {
         // El vehículo se añade a su cola correspondiente.
@@ -61,28 +62,22 @@ public class Intersection {
      * Este método SÓLO debe ser llamado desde un bloque 'lockeado'.
      */
     private boolean isMyTurn(Vehicle vehicle) {
-        // Regla 1: ¿Es el vehículo que solicita el primero en su propia cola? Si no,
-        // debe esperar.
         if (!Objects.equals(waitingQueues.get(vehicle.getOrigin()).peek(), vehicle)) {
             return false;
         }
 
-        // Regla 2: Prioridad de Emergencia.
         Vehicle emergencyVehicle = findFirstEmergencyVehicle();
         if (emergencyVehicle != null) {
-            // Si hay una emergencia, solo puede pasar si es ESTE vehículo.
             return Objects.equals(emergencyVehicle, vehicle);
         }
 
-        // Regla 3: Orden de llegada (First-Come, First-Served).
         Vehicle firstArrived = findFirstArrivedVehicle();
-        // Solo puede pasar si ESTE vehículo es el que llegó primero globalmente.
         return Objects.equals(firstArrived, vehicle);
     }
 
     private Vehicle findFirstEmergencyVehicle() {
         return waitingQueues.values().stream()
-                .map(ConcurrentLinkedQueue::peek) // Obtiene el primer vehículo de cada cola
+                .map(ConcurrentLinkedQueue::peek)
                 .filter(Objects::nonNull)
                 .filter(v -> v.getType() == VehicleType.EMERGENCY)
                 .findFirst()
@@ -91,7 +86,7 @@ public class Intersection {
 
     private Vehicle findFirstArrivedVehicle() {
         return waitingQueues.values().stream()
-                .map(ConcurrentLinkedQueue::peek) // Obtiene el primer vehículo de cada cola
+                .map(ConcurrentLinkedQueue::peek)
                 .filter(Objects::nonNull)
                 .min((v1, v2) -> Long.compare(v1.getArrivalTime(), v2.getArrivalTime()))
                 .orElse(null);

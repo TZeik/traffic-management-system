@@ -1,6 +1,7 @@
 package com.pucmm.trafficManagementSystem;
 
 import javafx.application.Application;
+import javafx.application.Platform;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
@@ -9,20 +10,27 @@ import javafx.stage.Stage;
 import java.io.IOException;
 
 /**
- * JavaFX App
+ * Java FX App
  */
 public class App extends Application {
 
     private static Scene scene;
 
     @Override
-    public void start(@SuppressWarnings("exports") Stage stage) throws IOException {
-        scene = new Scene(loadFXML("primary"), 640, 480);
+    public void start(Stage stage) throws IOException {
+        scene = new Scene(loadFXML("MenuView"), 800, 600);
         stage.setScene(scene);
+        stage.setTitle("Simulador de Tráfico Concurrente");
+
+        stage.setOnCloseRequest(e -> {
+            Platform.exit();
+            System.exit(0);
+        });
+
         stage.show();
     }
 
-    static void setRoot(String fxml) throws IOException {
+    public static void setRoot(String fxml) throws IOException {
         scene.setRoot(loadFXML(fxml));
     }
 
@@ -34,5 +42,4 @@ public class App extends Application {
     public static void main(String[] args) {
         launch();
     }
-
 }
