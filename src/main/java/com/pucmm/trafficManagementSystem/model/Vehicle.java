@@ -17,8 +17,10 @@ public class Vehicle implements Runnable {
     private long arrivalTime;
     private double x, y;
     private volatile boolean finished = false;
+
+    // Velocidades
     private final double normalSpeed = 1.2;
-    private final double emergencyClearSpeed = 1.4;
+    private final double emergencyClearSpeed = 1.8;
 
     private IntersectionController controller;
 
@@ -44,13 +46,13 @@ public class Vehicle implements Runnable {
             Point2D baseStopPoint = path.get(1);
             this.arrivalTime = System.currentTimeMillis();
 
+            // Bucle de espera activa
             while (true) {
                 if (intersection.isMyTurn(this)) {
                     break;
                 }
                 Point2D currentTarget = getDynamicStopPoint(baseStopPoint);
                 if (distanceTo(currentTarget) > 1.0) {
-                    System.out.printf(">> Vehículo %d moviéndose hacia adelante en la fila...\n", this.id);
                     moveTo(currentTarget);
                 }
                 Thread.sleep(200);
@@ -58,6 +60,7 @@ public class Vehicle implements Runnable {
 
             intersection.startCrossing(this);
 
+            // Recorre el resto del camino
             for (int i = 1; i < path.size(); i++) {
                 moveTo(path.get(i));
             }
@@ -71,11 +74,18 @@ public class Vehicle implements Runnable {
         }
     }
 
+    /**
+     * La velocidad ahora depende del estado de emergencia y del tipo de vehículo.
+     */
     private void moveTo(Point2D target) throws InterruptedException {
-        // Decide qué velocidad usar para este tramo
-        double currentSpeed = this.normalSpeed;
+        double currentSpeed;
+
+        // Si hay una emergencia activa Y este vehículo NO es de emergencia, debe
+        // acelerar para despejar.
         if (intersection.isEmergencyActive() && this.type != VehicleType.EMERGENCY) {
             currentSpeed = this.emergencyClearSpeed;
+        } else {
+            currentSpeed = this.normalSpeed;
         }
 
         while (distanceTo(target) > currentSpeed) {
@@ -87,7 +97,7 @@ public class Vehicle implements Runnable {
         x = target.getX();
         y = target.getY();
     }
-    
+
     private Point2D getDynamicStopPoint(Point2D baseStopLine) {
         int positionInQueue = intersection.getPositionInQueue(this);
         double vehicleSpacing = 30.0;
@@ -139,10 +149,6 @@ public class Vehicle implements Runnable {
 
     public Direction getOrigin() {
         return origin;
-    }
-
-    public Direction getDestinarion() {
-        return destination;
     }
 
     public long getArrivalTime() {
