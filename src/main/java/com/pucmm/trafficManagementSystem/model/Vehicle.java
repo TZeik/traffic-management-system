@@ -8,6 +8,8 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class Vehicle implements Runnable {
+    private volatile boolean running = true;
+
     private static final AtomicInteger idCounter = new AtomicInteger(0);
     private final int id;
     private final VehicleType type;
@@ -19,8 +21,8 @@ public class Vehicle implements Runnable {
     private volatile boolean finished = false;
 
     // Velocidades
-    private final double normalSpeed = 1.2;
-    private final double emergencyClearSpeed = 1.8;
+    private final double normalSpeed = 1.5;
+    private final double emergencyClearSpeed = 1.5;
 
     private IntersectionController controller;
 
@@ -34,44 +36,47 @@ public class Vehicle implements Runnable {
 
     @Override
     public void run() {
-        try {
-            intersection.addToQueue(this);
+        while (running && !isFinished()) {
+            try {
+                intersection.addToQueue(this);
 
-            List<Point2D> path = controller.getPath(origin, destination);
-            if (path.isEmpty()) {
+                List<Point2D> path = controller.getPath(origin, destination);
+                if (path.isEmpty()) {
+                    this.finished = true;
+                    return;
+                }
+
+                Point2D baseStopPoint = path.get(1);
+                this.arrivalTime = System.currentTimeMillis();
+
+                // Bucle de espera activa
+                while (true) {
+                    if (intersection.isMyTurn(this)) {
+                        break;
+                    }
+                    Point2D currentTarget = getDynamicStopPoint(baseStopPoint);
+                    if (distanceTo(currentTarget) > 1.0) {
+                        moveTo(currentTarget);
+                    }
+                    Thread.sleep(200);
+                }
+
+                intersection.startCrossing(this);
+
+                // Recorre el resto del camino
+                for (int i = 1; i < path.size(); i++) {
+                    moveTo(path.get(i));
+                }
+
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            } finally {
+                intersection.leaveIntersection(this);
                 this.finished = true;
-                return;
+                System.out.printf("🏁 Vehículo %d ha salido de la intersección.\n", this.id);
             }
-
-            Point2D baseStopPoint = path.get(1);
-            this.arrivalTime = System.currentTimeMillis();
-
-            // Bucle de espera activa
-            while (true) {
-                if (intersection.isMyTurn(this)) {
-                    break;
-                }
-                Point2D currentTarget = getDynamicStopPoint(baseStopPoint);
-                if (distanceTo(currentTarget) > 1.0) {
-                    moveTo(currentTarget);
-                }
-                Thread.sleep(200);
-            }
-
-            intersection.startCrossing(this);
-
-            // Recorre el resto del camino
-            for (int i = 1; i < path.size(); i++) {
-                moveTo(path.get(i));
-            }
-
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        } finally {
-            intersection.leaveIntersection(this);
-            this.finished = true;
-            System.out.printf("🏁 Vehículo %d ha salido de la intersección.\n", this.id);
         }
+
     }
 
     /**
@@ -157,5 +162,9 @@ public class Vehicle implements Runnable {
 
     public void setController(IntersectionController controller) {
         this.controller = controller;
+    }
+
+    public void stop() {
+        this.running = false;
     }
 }

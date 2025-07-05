@@ -9,10 +9,9 @@
 
 /* Estilo para los títulos principales de cada vista */
 .title-label {
-    -fx-font-size: 22px;
+    -fx-font-size: 36px;
     -fx-font-weight: bold;
     -fx-text-fill: #e0e1dd; /* Un blanco suave */
-    -fx-padding: 0 0 16px 0; /* Espacio extra debajo del título */
 }
 
 /* Estilo general para las etiquetas (labels) */
@@ -62,4 +61,23 @@
 .button-primary:pressed {
     -fx-background-color: #0052cc;
     -fx-effect: none;
+}
+
+/* Estilo para el botón de volver (icono) */
+.back-button {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-padding: 5px;
+    -fx-cursor: hand;
+}
+
+/* Color del icono por defecto */
+.back-button .ikonli-font-icon {
+    -fx-icon-color: #a9b4c2;
+    -fx-icon-size: 20px;
+}
+
+/* Color del icono al pasar el mouse por encima */
+.back-button:hover .ikonli-font-icon {
+    -fx-icon-color: white;
 }

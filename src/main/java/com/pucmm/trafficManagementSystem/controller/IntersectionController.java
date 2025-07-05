@@ -2,12 +2,19 @@ package com.pucmm.trafficManagementSystem.controller;
 
 import com.pucmm.trafficManagementSystem.model.Intersection;
 import com.pucmm.trafficManagementSystem.model.Vehicle;
+import com.pucmm.trafficManagementSystem.App;
 import com.pucmm.trafficManagementSystem.enums.Direction;
 import com.pucmm.trafficManagementSystem.enums.VehicleType;
+
+import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+
+import org.kordamp.ikonli.fontawesome5.FontAwesomeSolid;
+import org.kordamp.ikonli.javafx.FontIcon;
+
 import javafx.animation.AnimationTimer;
 import javafx.fxml.FXML;
 import javafx.geometry.Point2D;
@@ -41,10 +48,36 @@ public class IntersectionController {
     private Button addVehicleButton;
     @FXML
     private Button addMultipleButton;
+    @FXML
+    private Button backButton;
 
     private final Intersection intersection = new Intersection();
     private final Map<Vehicle, Circle> vehicleMap = new ConcurrentHashMap<>();
     private final Group streetGroup = new Group();
+
+    private AnimationTimer animationTimer;
+
+    @FXML
+    private void goBackToMenu() {
+        if (animationTimer != null) {
+            animationTimer.stop();
+            System.out.println("AnimationTimer detenido.");
+        }
+        System.out.println("Deteniendo " + vehicleMap.size() + " hilos de vehículos...");
+        for (Vehicle vehicle : vehicleMap.keySet()) {
+            vehicle.stop();
+
+            vehicleMap.clear();
+            simulationPane.getChildren().clear();
+            System.out.println("Simulación limpiada.");
+
+            try {
+                App.setRoot("MenuView");
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+    }
 
     @FXML
     public void initialize() {
@@ -56,6 +89,8 @@ public class IntersectionController {
         typeComboBox.getSelectionModel().selectFirst();
         originComboBox.getSelectionModel().selectFirst();
         destinationComboBox.getSelectionModel().selectFirst();
+        FontIcon backIcon = new FontIcon(FontAwesomeSolid.ARROW_LEFT);
+        backButton.setGraphic(backIcon);
 
         simulationPane.widthProperty().addListener((obs, oldVal, newVal) -> redrawStreet());
         simulationPane.heightProperty().addListener((obs, oldVal, newVal) -> redrawStreet());
@@ -198,7 +233,7 @@ public class IntersectionController {
     }
 
     private void startAnimationLoop() {
-        AnimationTimer timer = new AnimationTimer() {
+        this.animationTimer = new AnimationTimer() {
             @Override
             public void handle(long now) {
                 Iterator<Map.Entry<Vehicle, Circle>> iterator = vehicleMap.entrySet().iterator();
@@ -213,14 +248,14 @@ public class IntersectionController {
                 }
             }
         };
-        timer.start();
+        this.animationTimer.start();
     }
 
     private void disableButtonsTemporarily() {
         addVehicleButton.setDisable(true);
         addMultipleButton.setDisable(true);
 
-        PauseTransition pause = new PauseTransition(Duration.seconds(2));
+        PauseTransition pause = new PauseTransition(Duration.seconds(1));
 
         pause.setOnFinished(event -> {
             addVehicleButton.setDisable(false);

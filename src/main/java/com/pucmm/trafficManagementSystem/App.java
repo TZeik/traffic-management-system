@@ -21,7 +21,8 @@ public class App extends Application {
         scene = new Scene(loadFXML("MenuView"), 800, 600);
         stage.setScene(scene);
         stage.setTitle("Simulador de Tráfico Concurrente");
-
+        stage.setMaximized(true);
+        stage.setResizable(false);
         stage.setOnCloseRequest(e -> {
             Platform.exit();
             System.exit(0);

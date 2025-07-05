@@ -20,7 +20,12 @@
       
         <VBox prefWidth="280.0" styleClass="control-panel" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.topAnchor="0.0">
             <children>
-                <Label styleClass="title-label" text="Control de Simulación" />
+                <HBox alignment="CENTER_LEFT" spacing="20.0">
+               <children>
+                  <Button fx:id="backButton" onAction="#goBackToMenu" styleClass="back-button" />
+                  <Label styleClass="title-label" text="Control de Intersección" />
+               </children>
+            </HBox>
                 
                 <Label text="Tipo de Vehículo" />
                 <ComboBox fx:id="typeComboBox" maxWidth="1.7976931348623157E308" />

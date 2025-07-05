@@ -15,7 +15,7 @@
     <children>
         <Label styleClass="title-label" text="Simulador de Tráfico Concurrente" />
       
-        <Button fx:id="startButton" onAction="#startIntersectionSimulation" styleClass="button-primary" text="INICIAR SIMULACIÓN" />
+        <Button fx:id="startButton" onAction="#startIntersectionSimulation" styleClass="button-primary" text="SIMULACIÓN DE INTERSECCIÓN" minWidth="200.0"/>
     </children>
    
     <padding>
