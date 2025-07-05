@@ -206,7 +206,6 @@ public class IntersectionController {
         final int numberOfVehiclesToAdd = 15; // El número de vehículos a generar
         final Random random = new Random();
 
-        // Se crea un nuevo hilo para no congelar la UI
         new Thread(() -> {
             try {
                 Direction[] origins = { Direction.NORTH, Direction.SOUTH, Direction.EAST, Direction.WEST };
@@ -223,13 +222,13 @@ public class IntersectionController {
                         createAndStartVehicle(randomType, randomOrigin, randomDestination);
                     });
 
-                    Thread.sleep(250);
+                    Thread.sleep(1000);
                 }
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
             System.out.println("Adición de lote terminada.");
-        }).start(); // Inicia el hilo de fondo
+        }).start();
     }
 
     private void startAnimationLoop() {

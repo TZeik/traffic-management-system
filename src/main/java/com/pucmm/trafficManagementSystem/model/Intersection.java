@@ -29,19 +29,20 @@ public class Intersection {
 
     public void addToQueue(Vehicle vehicle) {
         waitingQueues.get(vehicle.getOrigin()).add(vehicle);
-        System.out.printf("📋 Vehículo %d (%s) añadido a la cola de %s.\n", vehicle.getId(), vehicle.getType(), vehicle.getOrigin());
+        System.out.printf("📋 Vehículo %d (%s) añadido a la cola de %s.\n", vehicle.getId(), vehicle.getType(),
+                vehicle.getOrigin());
 
         lock.lock();
         try {
             Direction originLane = vehicle.getOrigin();
 
             if (vehicle.getType() == VehicleType.EMERGENCY) {
-                // Si no hay una emergencia ya activa, esta nueva activa el modo.
                 if (!this.emergencyActive) {
                     this.emergencyActive = true;
-                    System.out.printf("🚨 ¡MODO DE EMERGENCIA ACTIVADO! Prioridad para el carril %s.\n", originLane);
+                    System.out.printf("🚨 ¡MODO DE EMERGENCIA ACTIVADO! El carril %s será el próximo en cruzar.\n",
+                            originLane);
                 }
-                // Se asegura de que el carril de la emergencia esté al frente de la cola.
+
                 laneQueue.remove(originLane);
                 laneQueue.addFirst(originLane);
             } else {
@@ -58,12 +59,14 @@ public class Intersection {
         crossingVehicles.remove(vehicle);
         lock.lock();
         try {
-            // Si el vehículo que sale era una emergencia, revisamos si era la última.
             if (vehicle.getType() == VehicleType.EMERGENCY) {
-                boolean anyOtherEmergency = crossingVehicles.stream().anyMatch(v -> v.getType() == VehicleType.EMERGENCY) ||
-                                            waitingQueues.values().stream().flatMap(q -> q.stream()).anyMatch(v -> v.getType() == VehicleType.EMERGENCY);
+                boolean anyOtherEmergency = crossingVehicles.stream()
+                        .anyMatch(v -> v.getType() == VehicleType.EMERGENCY) ||
+                        waitingQueues.values().stream().flatMap(q -> q.stream())
+                                .anyMatch(v -> v.getType() == VehicleType.EMERGENCY);
+
                 if (!anyOtherEmergency) {
-                    this.emergencyActive = false; // Desactiva el modo si ya no quedan emergencias.
+                    this.emergencyActive = false;
                     System.out.println("✅ Emergencia despejada. El tráfico vuelve a la normalidad.");
                 }
             }
@@ -78,9 +81,6 @@ public class Intersection {
         }
     }
 
-    /**
-     * Permite a los vehículos saber si hay una emergencia activa.
-     */
     public boolean isEmergencyActive() {
         return this.emergencyActive;
     }
@@ -88,11 +88,16 @@ public class Intersection {
     public boolean isMyTurn(Vehicle vehicle) {
         lock.lock();
         try {
-            Direction activeLane = laneQueue.peek();
-            if (!vehicle.getOrigin().equals(activeLane)) {
+            boolean otherLaneIsCrossing = crossingVehicles.stream()
+                    .anyMatch(v -> v.getOrigin() != vehicle.getOrigin());
+
+            if (otherLaneIsCrossing) {
                 return false;
             }
-            return Objects.equals(waitingQueues.get(vehicle.getOrigin()).peek(), vehicle);
+            Direction activeLane = laneQueue.peek();
+
+            return vehicle.getOrigin().equals(activeLane) &&
+                    Objects.equals(waitingQueues.get(vehicle.getOrigin()).peek(), vehicle);
         } finally {
             lock.unlock();
         }

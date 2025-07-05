@@ -21,8 +21,8 @@ public class Vehicle implements Runnable {
     private volatile boolean finished = false;
 
     // Velocidades
-    private final double normalSpeed = 1.5;
-    private final double emergencyClearSpeed = 1.5;
+    private final double normalSpeed = 1.4;
+    private final double emergencyClearSpeed = 1.8;
 
     private IntersectionController controller;
 
@@ -49,7 +49,6 @@ public class Vehicle implements Runnable {
                 Point2D baseStopPoint = path.get(1);
                 this.arrivalTime = System.currentTimeMillis();
 
-                // Bucle de espera activa
                 while (true) {
                     if (intersection.isMyTurn(this)) {
                         break;
@@ -63,7 +62,6 @@ public class Vehicle implements Runnable {
 
                 intersection.startCrossing(this);
 
-                // Recorre el resto del camino
                 for (int i = 1; i < path.size(); i++) {
                     moveTo(path.get(i));
                 }
@@ -79,15 +77,9 @@ public class Vehicle implements Runnable {
 
     }
 
-    /**
-     * La velocidad ahora depende del estado de emergencia y del tipo de vehículo.
-     */
     private void moveTo(Point2D target) throws InterruptedException {
         double currentSpeed;
-
-        // Si hay una emergencia activa Y este vehículo NO es de emergencia, debe
-        // acelerar para despejar.
-        if (intersection.isEmergencyActive() && this.type != VehicleType.EMERGENCY) {
+        if (intersection.isEmergencyActive()) {
             currentSpeed = this.emergencyClearSpeed;
         } else {
             currentSpeed = this.normalSpeed;
