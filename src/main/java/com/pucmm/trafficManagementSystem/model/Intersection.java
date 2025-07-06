@@ -13,7 +13,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.EnumMap;
 
-public class Intersection {
+public class Intersection implements TrafficManager {
     private final ReentrantLock lock = new ReentrantLock(true);
     private final Map<Direction, ConcurrentLinkedQueue<Vehicle>> waitingQueues;
     private final LinkedList<Direction> laneQueue = new LinkedList<>();
@@ -132,5 +132,15 @@ public class Intersection {
             indexInWaitingQueue = queueAsList.size();
         }
         return (int) vehiclesCrossingFromMyLane + indexInWaitingQueue;
+    }
+
+    @Override
+    public Direction getOrigin() {
+        lock.lock();
+        try {
+            return laneQueue.peek();
+        } finally {
+            lock.unlock();
+        }
     }
 }

@@ -209,7 +209,7 @@ public class IntersectionController {
         new Thread(() -> {
             try {
                 Direction[] origins = { Direction.NORTH, Direction.SOUTH, Direction.EAST, Direction.WEST };
-                Direction[] destinations = { Direction.STRAIGHT, Direction.LEFT, Direction.RIGHT };
+                Direction[] destinations = { Direction.STRAIGHT, Direction.LEFT, Direction.RIGHT, Direction.U_TURN };
 
                 for (int i = 0; i < numberOfVehiclesToAdd; i++) {
                     // Genera propiedades aleatorias para el nuevo vehículo

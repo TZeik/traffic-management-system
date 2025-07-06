@@ -7,7 +7,7 @@
 <?import javafx.scene.layout.VBox?>
 
 <VBox alignment="CENTER" prefHeight="480.0" prefWidth="720.0" spacing="24.0" styleClass="control-panel" xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.pucmm.trafficManagementSystem.controller.MenuController">
-   
+    
     <stylesheets>
         <URL value="@styles.css" />
     </stylesheets>
@@ -15,9 +15,10 @@
     <children>
         <Label styleClass="title-label" text="Simulador de Tráfico Concurrente" />
       
-        <Button fx:id="startButton" onAction="#startIntersectionSimulation" styleClass="button-primary" text="SIMULACIÓN DE INTERSECCIÓN" minWidth="200.0"/>
+        <Button onAction="#startIntersectionSimulation" styleClass="button-primary" text="SIMULACIÓN DE INTERSECCIÓN" minWidth="300.0"/>
+        <Button onAction="#startHighwaySimulation" styleClass="button-primary" text="SIMULACIÓN DE AUTOPISTA" minWidth="300.0"/>
     </children>
-   
+    
     <padding>
         <Insets bottom="20.0" left="20.0" right="20.0" top="20.0" />
     </padding>
