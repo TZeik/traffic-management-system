@@ -70,12 +70,12 @@ public class IntersectionController {
             vehicleMap.clear();
             simulationPane.getChildren().clear();
             System.out.println("Simulación limpiada.");
+        }
 
-            try {
-                App.setRoot("MenuView");
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
+        try {
+            App.setRoot("MenuView");
+        } catch (IOException e) {
+            e.printStackTrace();
         }
     }
 

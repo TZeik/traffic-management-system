@@ -28,7 +28,7 @@ public class Vehicle implements Runnable {
     private double x, y;
     private volatile boolean finished = false;
     private final double normalSpeed = 1.4;
-    private final double emergencyClearSpeed = 1.8;
+    private final double emergencyClearSpeed = 1.4;
 
     private List<Integer> trafficLightPath;
     private int nextTrafficLightIndex = 0;
@@ -86,6 +86,7 @@ public class Vehicle implements Runnable {
             trafficManager.addToQueue(this);
             int currentPathSegment = 1;
             boolean crossingStarted = false;
+            boolean hasLeftIntersection = false;
 
             while (running && currentPathSegment < path.size()) {
                 Point2D target = path.get(currentPathSegment);
@@ -100,7 +101,7 @@ public class Vehicle implements Runnable {
                     }
                 }
 
-                moveTo(target, trafficManager.isEmergencyActive() || this.type == VehicleType.EMERGENCY);
+                moveTo(target, this.type == VehicleType.EMERGENCY || trafficManager.isEmergencyActive());
 
                 if (distanceTo(target) < 1.5) {
                     if (crossingStarted) {
@@ -108,19 +109,16 @@ public class Vehicle implements Runnable {
                     }
                 }
 
+                if (crossingStarted && !hasLeftIntersection && currentPathSegment == path.size() - 1) {
+                    trafficManager.leaveIntersection(this);
+                    hasLeftIntersection = true;
+                }
+
                 Thread.sleep(16);
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         } finally {
-            if (intersectionStateManager != null) {
-                for (int i = 1; i <= 4; i++) {
-                    intersectionStateManager.vehicleExitsStraightZone(i, this);
-                }
-            }
-
-            if (trafficManager != null)
-                trafficManager.leaveIntersection(this);
             this.finished = true;
         }
     }
@@ -137,20 +135,21 @@ public class Vehicle implements Runnable {
             int currentPathSegment = 1;
 
             while (running && currentPathSegment < path.size()) {
-                
+
                 Vehicle leader = highwayController.findLeaderFor(this);
                 if (leader != null && distanceTo(new Point2D(leader.getX(), leader.getY())) < SAFE_DISTANCE) {
-                    updateIntersectionState(); 
+                    updateIntersectionState();
                     Thread.sleep(16);
-                    continue; 
+                    continue;
                 }
 
                 if (isApproachingTrafficLight()) {
                     int lightId = trafficLightPath.get(nextTrafficLightIndex);
-                    Point2D stopLine = highwayController.getStopLineForLight(lightId, origin, lane, highwayController.getSimulationPaneWidth(), highwayController.getSimulationPane().getHeight());
-
-                    // Comprobación clave: ¿La línea de parada está todavía en frente de mí?
-                    boolean stopLineIsInFront = (origin == Direction.WEST && getX() < stopLine.getX()) || (origin == Direction.EAST && getX() > stopLine.getX());
+                    Point2D stopLine = highwayController.getStopLineForLight(lightId, origin, lane,
+                            highwayController.getSimulationPaneWidth(),
+                            highwayController.getSimulationPane().getHeight());
+                    boolean stopLineIsInFront = (origin == Direction.WEST && getX() < stopLine.getX())
+                            || (origin == Direction.EAST && getX() > stopLine.getX());
 
                     if (stopLineIsInFront && distanceTo(stopLine) > 2.0) {
                         moveTo(stopLine, this.type == VehicleType.EMERGENCY);
@@ -158,26 +157,30 @@ public class Vehicle implements Runnable {
                         Thread.sleep(16);
                         continue;
                     }
-                    
-                    if (stopLineIsInFront) { // Solo evaluar el semáforo si estamos en su línea de parada
+
+                    if (stopLineIsInFront) {
                         boolean canGo = false;
                         if (this.type == VehicleType.EMERGENCY) {
-                            canGo = true; 
-                            if ((destination == Direction.LEFT || destination == Direction.U_TURN) && isAtFinalTurn(lightId)) {
-                                if (intersectionStateManager.isOpposingTrafficCrossing(getTargetIntersection().getId(), this)) {
+                            canGo = true;
+                            if ((destination == Direction.LEFT || destination == Direction.U_TURN)
+                                    && isAtFinalTurn(lightId)) {
+                                if (intersectionStateManager.isOpposingTrafficCrossing(getTargetIntersection().getId(),
+                                        this)) {
                                     canGo = false;
                                 }
                             }
-                        } else { 
+                        } else {
                             boolean isLightGreen = trafficLightController.isGreen(lightId);
                             canGo = isLightGreen;
                             if (!isLightGreen) {
                                 if (highwayController.findEmergencyFollower(this) != null) {
-                                    canGo = true; 
+                                    canGo = true;
                                 }
                             }
-                            if (canGo && (destination == Direction.LEFT || destination == Direction.U_TURN) && isAtFinalTurn(lightId)) {
-                                if (intersectionStateManager.isOpposingTrafficCrossing(getTargetIntersection().getId(), this)) {
+                            if (canGo && (destination == Direction.LEFT || destination == Direction.U_TURN)
+                                    && isAtFinalTurn(lightId)) {
+                                if (intersectionStateManager.isOpposingTrafficCrossing(getTargetIntersection().getId(),
+                                        this)) {
                                     canGo = false;
                                 }
                             }
@@ -189,18 +192,16 @@ public class Vehicle implements Runnable {
                             continue;
                         }
                     }
-                    
-                    // Si llegamos aquí, significa que podemos pasar la luz (o que ya la pasamos).
                     nextTrafficLightIndex++;
                 }
 
                 Point2D currentTarget = path.get(currentPathSegment);
                 moveTo(currentTarget, this.type == VehicleType.EMERGENCY);
-                
+
                 if (distanceTo(currentTarget) < 2.0) {
                     currentPathSegment++;
                 }
-                
+
                 updateIntersectionState();
                 Thread.sleep(16);
             }
@@ -218,7 +219,8 @@ public class Vehicle implements Runnable {
                     intersectionStateManager.vehicleExitsStraightZone(lastKnownIntersectionId, this);
                 }
             }
-            if (trafficManager != null) trafficManager.leaveIntersection(this);
+            if (trafficManager != null)
+                trafficManager.leaveIntersection(this);
             this.finished = true;
         }
     }
@@ -240,18 +242,14 @@ public class Vehicle implements Runnable {
     private void updateIntersectionState() {
         int currentIntersectionId = getMyCurrentIntersectionId();
 
-        // Si estábamos en una intersección y ahora ya no (o estamos en una diferente),
-        // significa que hemos salido de la anterior.
         if (lastKnownIntersectionId != -1 && lastKnownIntersectionId != currentIntersectionId) {
             intersectionStateManager.vehicleExitsStraightZone(lastKnownIntersectionId, this);
         }
 
-        // Si ahora estamos dentro de una intersección, anunciamos nuestra presencia.
         if (currentIntersectionId != -1) {
             intersectionStateManager.vehicleEntersStraightZone(currentIntersectionId, this);
         }
 
-        // Actualizamos nuestra última posición conocida para la siguiente iteración.
         lastKnownIntersectionId = currentIntersectionId;
     }
 
