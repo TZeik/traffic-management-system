@@ -12,9 +12,10 @@ public enum Direction {
     RIGHT,
     LEFT,
     U_TURN,
+    U_TURN_CONTINUATION,
 
-    // Lineas del Highway
-    LANE_1, // Carril izquierdo
+    // Lanes for Highway Scenario
+    LANE_1, // Carril derecho
     LANE_2, // Carril central
-    LANE_3  // Carril derecho
+    LANE_3  // Carril izquierdo
 }

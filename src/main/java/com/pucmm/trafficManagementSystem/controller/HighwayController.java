@@ -4,6 +4,7 @@ import com.pucmm.trafficManagementSystem.App;
 import com.pucmm.trafficManagementSystem.enums.Direction;
 import com.pucmm.trafficManagementSystem.enums.VehicleType;
 import com.pucmm.trafficManagementSystem.model.HighwayIntersection;
+import com.pucmm.trafficManagementSystem.model.IntersectionStateManager;
 import com.pucmm.trafficManagementSystem.model.Vehicle;
 import javafx.animation.AnimationTimer;
 import javafx.animation.PauseTransition;
@@ -11,6 +12,7 @@ import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.geometry.Point2D;
 import javafx.scene.Group;
+import javafx.scene.Node;
 import javafx.scene.control.Button;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
@@ -18,11 +20,7 @@ import javafx.scene.layout.Pane;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Circle;
 import javafx.scene.shape.Line;
-import javafx.scene.shape.Polygon;
 import javafx.scene.shape.Rectangle;
-import javafx.scene.text.Font;
-import javafx.scene.text.Text;
-import javafx.scene.transform.Rotate;
 import javafx.util.Duration;
 import org.kordamp.ikonli.fontawesome5.FontAwesomeSolid;
 import org.kordamp.ikonli.javafx.FontIcon;
@@ -50,19 +48,21 @@ public class HighwayController {
     private final List<HighwayIntersection> intersections = new ArrayList<>();
     private final Map<Vehicle, Circle> vehicleMap = new ConcurrentHashMap<>();
     private final Group highwayGroup = new Group();
+    private final Group trafficLightsGroup = new Group();
     private AnimationTimer animationTimer;
     private final double laneHeight = 60;
     private final double intersectionWidth = 120;
+    private static final double SAFE_DISTANCE = 50.0;
 
-    private final Map<Integer, Set<Vehicle>> approachingVehicles = new ConcurrentHashMap<>();
+    private final TrafficLightController trafficLightController = new TrafficLightController();
+    private final IntersectionStateManager intersectionStateManager = new IntersectionStateManager();
 
     @FXML
     public void initialize() {
         for (int i = 1; i <= 4; i++) {
             intersections.add(new HighwayIntersection(i));
-            approachingVehicles.put(i, ConcurrentHashMap.newKeySet());
         }
-        simulationPane.getChildren().add(highwayGroup);
+        simulationPane.getChildren().addAll(highwayGroup, trafficLightsGroup);
         typeComboBox.getItems().setAll(VehicleType.values());
         originComboBox.getItems().setAll(Direction.WEST, Direction.EAST);
         actionComboBox.getItems().setAll(Direction.STRAIGHT, Direction.LEFT, Direction.RIGHT, Direction.U_TURN);
@@ -126,6 +126,8 @@ public class HighwayController {
 
     private void redrawHighway() {
         highwayGroup.getChildren().clear();
+        trafficLightsGroup.getChildren().clear();
+
         double width = simulationPane.getWidth();
         double height = simulationPane.getHeight();
         if (width == 0 || height == 0)
@@ -137,6 +139,7 @@ public class HighwayController {
         Rectangle highwayBackground = new Rectangle(0, highwayY, width, totalHighwayHeight);
         highwayBackground.setFill(Color.GRAY);
         highwayGroup.getChildren().add(highwayBackground);
+
         for (int i = 1; i <= 4; i++) {
             double centerX = getIntersectionCenterX(i, width);
             Rectangle vStreet = new Rectangle(centerX - intersectionWidth / 2, 0, intersectionWidth, height);
@@ -167,40 +170,56 @@ public class HighwayController {
         finalWallSegment.setFill(Color.DARKSLATEGRAY);
         highwayGroup.getChildren().add(finalWallSegment);
 
-        for (int i = 1; i <= 4; i++) {
-            double centerX = getIntersectionCenterX(i, width);
-            highwayGroup.getChildren().add(createStopSign(
-                    centerX + intersectionWidth / 2 + 15,
-                    highwayY + (laneHeight * 3),
-                    180));
-            highwayGroup.getChildren().add(createStopSign(
-                    centerX - intersectionWidth / 2 - 15,
-                    highwayY + (laneHeight * 3),
-                    0));
-        }
-
+        // Semáforos vía superior (derecha a izquierda), IDs: 4, 2, 1
+        trafficLightsGroup.getChildren().add(createTrafficLight(4, getIntersectionCenterX(3, width) + intersectionWidth / 2 + 15, highwayY + laneHeight * 1.5));
+        trafficLightsGroup.getChildren().add(createTrafficLight(2, getIntersectionCenterX(2, width) + intersectionWidth / 2 + 15, highwayY + laneHeight * 1.5));
+        trafficLightsGroup.getChildren().add(createTrafficLight(1, getIntersectionCenterX(1, width) + intersectionWidth / 2 + 15, highwayY + laneHeight * 1.5));
+        
+        // Semáforos vía inferior (izquierda a derecha), IDs: 3, 5, 6
+        trafficLightsGroup.getChildren().add(createTrafficLight(3, getIntersectionCenterX(2, width) - intersectionWidth / 2 - 25, highwayY + laneHeight * 4.5));
+        trafficLightsGroup.getChildren().add(createTrafficLight(5, getIntersectionCenterX(3, width) - intersectionWidth / 2 - 25, highwayY + laneHeight * 4.5));
+        trafficLightsGroup.getChildren().add(createTrafficLight(6, getIntersectionCenterX(4, width) - intersectionWidth / 2 - 25, highwayY + laneHeight * 4.5));
+        
         highwayGroup.toBack();
     }
+    
+    private Node createTrafficLight(int id, double x, double y) {
+        Group lightGroup = new Group();
+        lightGroup.setId(String.valueOf(id)); // ID del grupo para referencia
 
-    private Group createStopSign(double x, double y, double angle) {
-        double scale = 0.4;
-        Polygon octagon = new Polygon(
-                20 * scale, 0, 40 * scale, 0, 60 * scale, 20 * scale, 60 * scale, 40 * scale,
-                40 * scale, 60 * scale, 20 * scale, 60 * scale, 0, 40 * scale, 0, 20 * scale);
-        octagon.setFill(Color.RED);
-        octagon.setStroke(Color.WHITE);
-        octagon.setStrokeWidth(2);
+        Rectangle post = new Rectangle(x, y - 20, 14, 40);
+        post.setFill(Color.BLACK);
+        post.setArcWidth(5);
+        post.setArcHeight(5);
 
-        Text text = new Text("STOP");
-        text.setFont(Font.font("Arial BOLD", 16 * scale));
-        text.setFill(Color.WHITE);
-        text.setX(10 * scale);
-        text.setY(37 * scale);
+        Circle red = new Circle(x + 7, y - 10, 6, Color.DARKRED);
+        red.setId("red");
+        Circle green = new Circle(x + 7, y + 10, 6, Color.DARKGREEN);
+        green.setId("green");
+        
+        lightGroup.getChildren().addAll(post, red, green);
+        return lightGroup;
+    }
 
-        Group sign = new Group(octagon, text);
-        sign.relocate(x - 30 * scale, y - 30 * scale);
-        sign.getTransforms().add(new Rotate(angle, 30 * scale, 30 * scale));
-        return sign;
+    private void updateTrafficLights() {
+        for (Node node : trafficLightsGroup.getChildren()) {
+            if (node instanceof Group) {
+                Group lightGroup = (Group) node;
+                int id = Integer.parseInt(lightGroup.getId());
+                Circle red = (Circle) lightGroup.lookup("#red");
+                Circle green = (Circle) lightGroup.lookup("#green");
+                
+                if (red != null && green != null) {
+                    if (trafficLightController.isGreen(id)) {
+                        green.setFill(Color.LIME);
+                        red.setFill(Color.DARKRED);
+                    } else {
+                        green.setFill(Color.DARKGREEN);
+                        red.setFill(Color.RED);
+                    }
+                }
+            }
+        }
     }
 
     @FXML
@@ -223,7 +242,7 @@ public class HighwayController {
     @FXML
     private void addMultipleVehicles() {
         disableButtonsTemporarily();
-        final int numVehicles = 30;
+        final int numVehicles = 15;
         final Random random = new Random();
         Direction[] actions = { Direction.STRAIGHT, Direction.LEFT, Direction.RIGHT, Direction.U_TURN };
         new Thread(() -> {
@@ -231,7 +250,7 @@ public class HighwayController {
                 for (int i = 0; i < numVehicles; i++) {
                     Direction origin = random.nextBoolean() ? Direction.WEST : Direction.EAST;
                     Direction action = actions[random.nextInt(actions.length)];
-                    VehicleType type = (random.nextInt(200) == 0) ? VehicleType.EMERGENCY : VehicleType.NORMAL;
+                    VehicleType type = (random.nextInt(1000) == 0) ? VehicleType.EMERGENCY : VehicleType.NORMAL;
 
                     Direction lane;
                     if (action == Direction.LEFT || action == Direction.U_TURN)
@@ -263,19 +282,21 @@ public class HighwayController {
         }).start();
     }
 
-    private void createAndStartVehicle(VehicleType type, Direction origin, Direction lane, Direction action,
-            Integer intersectionId) {
-        HighwayIntersection targetIntersection = (intersectionId != null) ? intersections.get(intersectionId - 1)
-                : null;
+    private void createAndStartVehicle(VehicleType type, Direction origin, Direction lane, Direction action, Integer intersectionId) {
+        HighwayIntersection targetIntersection = (intersectionId != null) ? intersections.get(intersectionId - 1) : null;
         Vehicle vehicle = new Vehicle(type, origin, action, targetIntersection);
         vehicle.setLane(lane);
         vehicle.setController(this);
+        vehicle.setTrafficLightController(trafficLightController);
+        vehicle.setIntersectionStateManager(intersectionStateManager);
+        
         Circle vehicleCircle = new Circle(10,
                 type == VehicleType.EMERGENCY ? Color.web("#e74c3c") : Color.web("#3498db"));
         vehicleCircle.setStroke(Color.BLACK);
+        
         List<Point2D> path = getPath(vehicle);
-        if (path.isEmpty())
-            return;
+        if (path.isEmpty()) return;
+        
         Point2D startPos = path.get(0);
         vehicle.setPosition(startPos.getX(), startPos.getY());
         vehicleMap.put(vehicle, vehicleCircle);
@@ -295,6 +316,12 @@ public class HighwayController {
         Direction lane = vehicle.getLane();
         double startY = getLaneY(origin, lane, highwayY);
 
+        if (action == Direction.U_TURN_CONTINUATION) {
+            Point2D start = new Point2D(vehicle.getX(), vehicle.getY());
+            Point2D end = new Point2D(origin == Direction.WEST ? width + 50 : -50, startY);
+            return List.of(start, end);
+        }
+
         if (action == Direction.STRAIGHT) {
             Point2D start = new Point2D(origin == Direction.WEST ? -50 : width + 50, startY);
             Point2D end = new Point2D(origin == Direction.WEST ? width + 50 : -50, startY);
@@ -302,8 +329,7 @@ public class HighwayController {
         }
 
         HighwayIntersection intersection = vehicle.getTargetIntersection();
-        if (intersection == null)
-            return List.of();
+        if (intersection == null) return List.of();
 
         double intersectionCenterX = getIntersectionCenterX(intersection.getId(), width);
         List<Point2D> path = new ArrayList<>();
@@ -311,48 +337,68 @@ public class HighwayController {
 
         if (origin == Direction.WEST) {
             startPoint = new Point2D(-50, startY);
-            stopPoint = new Point2D(intersectionCenterX - intersectionWidth / 2 - 20, startY);
+            stopPoint = new Point2D(getStopLineForLight(getLightIdForIntersection(intersection.getId(), origin), origin, lane, width, height).getX(), startY);
             turnPoint = new Point2D(intersectionCenterX, startY);
             path.addAll(Arrays.asList(startPoint, stopPoint, turnPoint));
 
             switch (action) {
-                case RIGHT:
-                    path.add(new Point2D(intersectionCenterX, height + 50));
-                    break;
-                case LEFT:
-                    path.add(new Point2D(intersectionCenterX, -50));
-                    break;
+                case RIGHT: path.add(new Point2D(intersectionCenterX, height + 50)); break;
+                case LEFT: path.add(new Point2D(intersectionCenterX, -50)); break;
                 case U_TURN:
                     path.add(new Point2D(intersectionCenterX, getLaneY(Direction.EAST, Direction.LANE_2, highwayY)));
-                    path.add(new Point2D(-50, getLaneY(Direction.EAST, Direction.LANE_2, highwayY)));
+                    path.add(new Point2D(intersectionCenterX - 30, getLaneY(Direction.EAST, Direction.LANE_2, highwayY))); // Punto final del giro
                     break;
-                default:
-                    break;
+                default: break;
             }
         } else {
             startPoint = new Point2D(width + 50, startY);
-            stopPoint = new Point2D(intersectionCenterX + intersectionWidth / 2 + 20, startY);
+            stopPoint = new Point2D(getStopLineForLight(getLightIdForIntersection(intersection.getId(), origin), origin, lane, width, height).getX(), startY);
             turnPoint = new Point2D(intersectionCenterX, startY);
             path.addAll(Arrays.asList(startPoint, stopPoint, turnPoint));
 
             switch (action) {
-                case RIGHT:
-                    path.add(new Point2D(intersectionCenterX, -50));
-                    break;
-                case LEFT:
-                    path.add(new Point2D(intersectionCenterX, height + 50));
-                    break;
+                case RIGHT: path.add(new Point2D(intersectionCenterX, -50)); break;
+                case LEFT: path.add(new Point2D(intersectionCenterX, height + 50)); break;
                 case U_TURN:
                     path.add(new Point2D(intersectionCenterX, getLaneY(Direction.WEST, Direction.LANE_2, highwayY)));
-                    path.add(new Point2D(width + 50, getLaneY(Direction.WEST, Direction.LANE_2, highwayY)));
+                    path.add(new Point2D(intersectionCenterX + 30, getLaneY(Direction.WEST, Direction.LANE_2, highwayY))); // Punto final del giro
                     break;
-                default:
-                    break;
+                default: break;
             }
         }
         return path;
     }
 
+    private int getLightIdForIntersection(int intersectionId, Direction origin) {
+        if (origin == Direction.WEST) { // Vía inferior
+            if (intersectionId == 2) return 3;
+            if (intersectionId == 3) return 5;
+            if (intersectionId == 4) return 6;
+        } else { // Vía superior
+            if (intersectionId == 1) return 1;
+            if (intersectionId == 2) return 2;
+            if (intersectionId == 3) return 4;
+        }
+        return -1; // No debería ocurrir
+    }
+
+    public Point2D getStopLineForLight(int lightId, Direction origin, Direction lane, double width, double height) {
+        double highwayY = (height - (laneHeight * 6)) / 2;
+        double yPos = getLaneY(origin, lane, highwayY);
+        double xPos;
+
+        switch(lightId) {
+            case 1: xPos = getIntersectionCenterX(1, width) + intersectionWidth / 2; break;
+            case 2: xPos = getIntersectionCenterX(2, width) + intersectionWidth / 2; break;
+            case 4: xPos = getIntersectionCenterX(3, width) + intersectionWidth / 2; break;
+            case 3: xPos = getIntersectionCenterX(2, width) - intersectionWidth / 2; break;
+            case 5: xPos = getIntersectionCenterX(3, width) - intersectionWidth / 2; break;
+            case 6: xPos = getIntersectionCenterX(4, width) - intersectionWidth / 2; break;
+            default: xPos = 0; break;
+        }
+        return new Point2D(xPos - (origin == Direction.WEST ? 50 : -50), yPos);
+    }
+    
     private double getLaneY(Direction origin, Direction lane, double highwayY) {
         double laneOffset = 0.5;
         if (lane == Direction.LANE_2)
@@ -368,15 +414,11 @@ public class HighwayController {
         double minDistance = Double.MAX_VALUE;
 
         for (Vehicle potentialLeader : vehicleMap.keySet()) {
-            if (follower.equals(potentialLeader)) {
-                continue;
-            }
+            if (follower.equals(potentialLeader)) continue;
 
-            if (follower.getOrigin() == potentialLeader.getOrigin()
-                    && follower.getLane() == potentialLeader.getLane()) {
+            if (follower.getOrigin() == potentialLeader.getOrigin() && follower.getLane() == potentialLeader.getLane()) {
                 double distance;
                 boolean isInFront;
-
                 if (follower.getOrigin() == Direction.WEST) {
                     isInFront = potentialLeader.getX() > follower.getX();
                     distance = potentialLeader.getX() - follower.getX();
@@ -384,7 +426,6 @@ public class HighwayController {
                     isInFront = potentialLeader.getX() < follower.getX();
                     distance = follower.getX() - potentialLeader.getX();
                 }
-
                 if (isInFront && distance < minDistance) {
                     minDistance = distance;
                     leader = potentialLeader;
@@ -394,40 +435,65 @@ public class HighwayController {
         return leader;
     }
 
-    public void registerApproachingVehicle(int intersectionId, Vehicle vehicle) {
-        approachingVehicles.get(intersectionId).add(vehicle);
-    }
+    public Vehicle findEmergencyFollower(Vehicle leader) {
+        for (Vehicle potentialFollower : vehicleMap.keySet()) {
+            if (leader.equals(potentialFollower) || potentialFollower.getType() != VehicleType.EMERGENCY) {
+                continue;
+            }
 
-    public void deregisterApproachingVehicle(int intersectionId, Vehicle vehicle) {
-        approachingVehicles.get(intersectionId).remove(vehicle);
-    }
+            if (leader.getOrigin() == potentialFollower.getOrigin() && leader.getLane() == potentialFollower.getLane()) {
+                boolean isBehind;
+                if (leader.getOrigin() == Direction.WEST) { // Moviéndose a la derecha
+                    isBehind = potentialFollower.getX() < leader.getX();
+                } else { // Moviéndose a la izquierda
+                    isBehind = potentialFollower.getX() > leader.getX();
+                }
 
-    public boolean isIntersectionApproachedByStraightVehicle(int intersectionId, Vehicle vehicleToCheck) {
-        Set<Vehicle> approaching = approachingVehicles.get(intersectionId);
-        if (approaching.isEmpty()) {
-            return false;
+                if (isBehind && leader.distanceTo(new Point2D(potentialFollower.getX(), potentialFollower.getY())) < SAFE_DISTANCE * 1.5) {
+                    return potentialFollower;
+                }
+            }
         }
-
-        if (vehicleToCheck.getType() == VehicleType.EMERGENCY) {
-            return approaching.stream().anyMatch(v -> v.getType() == VehicleType.EMERGENCY);
-        }
-
-        return !approaching.isEmpty();
+        return null;
     }
 
-    public boolean shouldYieldForTurningEmergency(Vehicle straightVehicle, int intersectionId) {
-        HighwayIntersection intersection = intersections.get(intersectionId - 1);
-        return intersection.hasEmergencyVehicleWaiting();
+    public void spawnStraightVehicleFromUTurn(Vehicle uTurnVehicle) {
+        Direction newOrigin = (uTurnVehicle.getOrigin() == Direction.WEST) ? Direction.EAST : Direction.WEST;
+        VehicleType type = uTurnVehicle.getType();
+        Direction lane = Direction.LANE_2;
+
+        Vehicle straightVehicle = new Vehicle(type, newOrigin, Direction.U_TURN_CONTINUATION, (HighwayIntersection) null);
+        
+        straightVehicle.setLane(lane);
+        straightVehicle.setController(this);
+        straightVehicle.setTrafficLightController(trafficLightController);
+        straightVehicle.setIntersectionStateManager(intersectionStateManager);
+        
+        straightVehicle.setPosition(uTurnVehicle.getX(), uTurnVehicle.getY());
+        
+        Circle vehicleCircle = new Circle(10,
+                type == VehicleType.EMERGENCY ? Color.web("#e74c3c") : Color.web("#3498db"));
+        vehicleCircle.setStroke(Color.BLACK);
+        
+        vehicleMap.put(straightVehicle, vehicleCircle);
+        simulationPane.getChildren().add(vehicleCircle);
+        new Thread(straightVehicle).start();
     }
 
     public double getSimulationPaneWidth() {
         return simulationPane.getWidth();
+    }
+    
+    public Pane getSimulationPane() {
+        return simulationPane;
     }
 
     private void startAnimationLoop() {
         animationTimer = new AnimationTimer() {
             @Override
             public void handle(long now) {
+                updateTrafficLights();
+                
                 Iterator<Map.Entry<Vehicle, Circle>> iterator = vehicleMap.entrySet().iterator();
                 while (iterator.hasNext()) {
                     Map.Entry<Vehicle, Circle> entry = iterator.next();
@@ -458,6 +524,7 @@ public class HighwayController {
     private void goBackToMenu() {
         if (animationTimer != null)
             animationTimer.stop();
+        trafficLightController.shutdown();
         for (Vehicle vehicle : vehicleMap.keySet())
             vehicle.stop();
         vehicleMap.clear();

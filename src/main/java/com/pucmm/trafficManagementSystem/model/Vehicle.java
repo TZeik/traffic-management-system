@@ -2,12 +2,13 @@ package com.pucmm.trafficManagementSystem.model;
 
 import com.pucmm.trafficManagementSystem.controller.HighwayController;
 import com.pucmm.trafficManagementSystem.controller.IntersectionController;
+import com.pucmm.trafficManagementSystem.controller.TrafficLightController;
 import com.pucmm.trafficManagementSystem.enums.Direction;
 import com.pucmm.trafficManagementSystem.enums.VehicleType;
-import javafx.geometry.Point2D;
 
+import javafx.application.Platform;
+import javafx.geometry.Point2D;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -29,8 +30,12 @@ public class Vehicle implements Runnable {
     private final double normalSpeed = 1.4;
     private final double emergencyClearSpeed = 1.8;
 
-    private List<Integer> straightPathIntersections;
-    private int nextStraightIntersectionIndex = 0;
+    private List<Integer> trafficLightPath;
+    private int nextTrafficLightIndex = 0;
+    private int lastKnownIntersectionId = -1;
+
+    private TrafficLightController trafficLightController;
+    private IntersectionStateManager intersectionStateManager;
 
     public Vehicle(VehicleType type, Direction origin, Direction destination, Intersection intersection) {
         this.id = idCounter.incrementAndGet();
@@ -46,6 +51,14 @@ public class Vehicle implements Runnable {
         this.origin = origin;
         this.destination = action;
         this.trafficManager = targetIntersection;
+    }
+
+    public void setTrafficLightController(TrafficLightController tlc) {
+        this.trafficLightController = tlc;
+    }
+
+    public void setIntersectionStateManager(IntersectionStateManager ism) {
+        this.intersectionStateManager = ism;
     }
 
     @Override
@@ -100,11 +113,15 @@ public class Vehicle implements Runnable {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         } finally {
-            if (trafficManager != null) {
-                trafficManager.leaveIntersection(this);
+            if (intersectionStateManager != null) {
+                for (int i = 1; i <= 4; i++) {
+                    intersectionStateManager.vehicleExitsStraightZone(i, this);
+                }
             }
+
+            if (trafficManager != null)
+                trafficManager.leaveIntersection(this);
             this.finished = true;
-            System.out.printf("🏁 Vehículo %d ha completado su ruta.\n", this.id);
         }
     }
 
@@ -116,141 +133,178 @@ public class Vehicle implements Runnable {
                 return;
             }
 
-            calculateStraightPathIntersections();
-            if (!straightPathIntersections.isEmpty()) {
-                highwayController.registerApproachingVehicle(straightPathIntersections.get(0), this);
-            }
-
-            if (trafficManager != null) {
-                trafficManager.addToQueue(this);
-            }
-
+            calculateTrafficLightPath();
             int currentPathSegment = 1;
-            while (running && currentPathSegment < path.size()) {
-                boolean shouldMove = true;
 
+            while (running && currentPathSegment < path.size()) {
+                
                 Vehicle leader = highwayController.findLeaderFor(this);
                 if (leader != null && distanceTo(new Point2D(leader.getX(), leader.getY())) < SAFE_DISTANCE) {
-                    shouldMove = false;
-                } else {
-                    boolean isYieldingSituation = (trafficManager != null && this.lane == Direction.LANE_1
-                            && currentPathSegment == 1);
-                    if (isYieldingSituation) {
-                        if (highwayController.isIntersectionApproachedByStraightVehicle(getTargetIntersection().getId(),
-                                this)) {
-                            Point2D stopPoint = getDynamicStopPoint(path.get(1));
-                            moveTo(stopPoint, this.type == VehicleType.EMERGENCY);
-                            if (distanceTo(stopPoint) < 1.5) {
-                                shouldMove = false;
+                    updateIntersectionState(); 
+                    Thread.sleep(16);
+                    continue; 
+                }
+
+                if (isApproachingTrafficLight()) {
+                    int lightId = trafficLightPath.get(nextTrafficLightIndex);
+                    Point2D stopLine = highwayController.getStopLineForLight(lightId, origin, lane, highwayController.getSimulationPaneWidth(), highwayController.getSimulationPane().getHeight());
+
+                    // Comprobación clave: ¿La línea de parada está todavía en frente de mí?
+                    boolean stopLineIsInFront = (origin == Direction.WEST && getX() < stopLine.getX()) || (origin == Direction.EAST && getX() > stopLine.getX());
+
+                    if (stopLineIsInFront && distanceTo(stopLine) > 2.0) {
+                        moveTo(stopLine, this.type == VehicleType.EMERGENCY);
+                        updateIntersectionState();
+                        Thread.sleep(16);
+                        continue;
+                    }
+                    
+                    if (stopLineIsInFront) { // Solo evaluar el semáforo si estamos en su línea de parada
+                        boolean canGo = false;
+                        if (this.type == VehicleType.EMERGENCY) {
+                            canGo = true; 
+                            if ((destination == Direction.LEFT || destination == Direction.U_TURN) && isAtFinalTurn(lightId)) {
+                                if (intersectionStateManager.isOpposingTrafficCrossing(getTargetIntersection().getId(), this)) {
+                                    canGo = false;
+                                }
+                            }
+                        } else { 
+                            boolean isLightGreen = trafficLightController.isGreen(lightId);
+                            canGo = isLightGreen;
+                            if (!isLightGreen) {
+                                if (highwayController.findEmergencyFollower(this) != null) {
+                                    canGo = true; 
+                                }
+                            }
+                            if (canGo && (destination == Direction.LEFT || destination == Direction.U_TURN) && isAtFinalTurn(lightId)) {
+                                if (intersectionStateManager.isOpposingTrafficCrossing(getTargetIntersection().getId(), this)) {
+                                    canGo = false;
+                                }
                             }
                         }
+
+                        if (!canGo) {
+                            updateIntersectionState();
+                            Thread.sleep(16);
+                            continue;
+                        }
                     }
+                    
+                    // Si llegamos aquí, significa que podemos pasar la luz (o que ya la pasamos).
+                    nextTrafficLightIndex++;
                 }
 
-                if (this.destination != Direction.STRAIGHT && !isYieldingSituation() && currentPathSegment == 1) {
-                    if (amIApproachingAnIntersection()
-                            && highwayController.shouldYieldForTurningEmergency(this, getNextIntersectionId())) {
-                        shouldMove = false;
-                    }
+                Point2D currentTarget = path.get(currentPathSegment);
+                moveTo(currentTarget, this.type == VehicleType.EMERGENCY);
+                
+                if (distanceTo(currentTarget) < 2.0) {
+                    currentPathSegment++;
                 }
-
-                if (shouldMove) {
-                    Point2D currentTarget = path.get(currentPathSegment);
-                    moveTo(currentTarget, this.type == VehicleType.EMERGENCY);
-
-                    if (distanceTo(currentTarget) < 1.5) {
-                        currentPathSegment++;
-                    }
-                }
-
-                updateIntersectionFlags();
-
+                
+                updateIntersectionState();
                 Thread.sleep(16);
             }
+
+            if (running && this.destination == Direction.U_TURN) {
+                final Vehicle self = this;
+                Platform.runLater(() -> highwayController.spawnStraightVehicleFromUTurn(self));
+            }
+
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         } finally {
-            if (highwayController != null && straightPathIntersections != null) {
-                for (int i = nextStraightIntersectionIndex; i < straightPathIntersections.size(); i++) {
-                    highwayController.deregisterApproachingVehicle(straightPathIntersections.get(i), this);
+            if (intersectionStateManager != null) {
+                if (lastKnownIntersectionId != -1) {
+                    intersectionStateManager.vehicleExitsStraightZone(lastKnownIntersectionId, this);
                 }
             }
-            if (trafficManager != null) {
-                trafficManager.leaveIntersection(this);
-            }
+            if (trafficManager != null) trafficManager.leaveIntersection(this);
             this.finished = true;
-            System.out.printf("🏁 Vehículo %d ha completado su ruta.\n", this.id);
         }
     }
 
-    private boolean isYieldingSituation() {
-        return trafficManager != null && this.lane == Direction.LANE_1
-                && getPathFromController().indexOf(getDynamicStopPoint(getPathFromController().get(1))) == 1;
-    }
+    private boolean isAtFinalTurn(int lightId) {
+        if (getTargetIntersection() == null)
+            return false;
+        int targetIntersectionId = getTargetIntersection().getId();
 
-    private int getNextIntersectionId() {
-        if (straightPathIntersections != null && !straightPathIntersections.isEmpty()
-                && nextStraightIntersectionIndex < straightPathIntersections.size()) {
-            return straightPathIntersections.get(nextStraightIntersectionIndex);
-        }
-        if (getTargetIntersection() != null) {
-            return getTargetIntersection().getId();
-        }
-        return -1;
-    }
-
-    private boolean amIApproachingAnIntersection() {
-        int nextIntersectionId = getNextIntersectionId();
-        if (nextIntersectionId != -1) {
-            double intersectionCenterX = highwayController.getIntersectionCenterX(nextIntersectionId,
-                    highwayController.getSimulationPaneWidth());
-            double dangerZone = 120.0;
-            return Math.abs(this.x - intersectionCenterX) < dangerZone;
+        if ((lightId == 1 && targetIntersectionId == 1) ||
+                ((lightId == 2 || lightId == 3) && targetIntersectionId == 2) ||
+                ((lightId == 4 || lightId == 5) && targetIntersectionId == 3) ||
+                (lightId == 6 && targetIntersectionId == 4)) {
+            return true;
         }
         return false;
     }
 
-    private void calculateStraightPathIntersections() {
-        straightPathIntersections = new ArrayList<>();
-        int finalDestinationId = (getTargetIntersection() != null) ? getTargetIntersection().getId() : 0;
+    private void updateIntersectionState() {
+        int currentIntersectionId = getMyCurrentIntersectionId();
 
-        for (int i = 1; i <= 4; i++) {
-            if (this.destination == Direction.STRAIGHT) {
-                straightPathIntersections.add(i);
-            } else if (finalDestinationId != 0) {
-                if (this.origin == Direction.WEST && i < finalDestinationId) {
-                    straightPathIntersections.add(i);
-                } else if (this.origin == Direction.EAST && i > finalDestinationId) {
-                    straightPathIntersections.add(i);
-                }
-            }
+        // Si estábamos en una intersección y ahora ya no (o estamos en una diferente),
+        // significa que hemos salido de la anterior.
+        if (lastKnownIntersectionId != -1 && lastKnownIntersectionId != currentIntersectionId) {
+            intersectionStateManager.vehicleExitsStraightZone(lastKnownIntersectionId, this);
         }
-        if (this.origin == Direction.EAST) {
-            Collections.reverse(straightPathIntersections);
+
+        // Si ahora estamos dentro de una intersección, anunciamos nuestra presencia.
+        if (currentIntersectionId != -1) {
+            intersectionStateManager.vehicleEntersStraightZone(currentIntersectionId, this);
         }
+
+        // Actualizamos nuestra última posición conocida para la siguiente iteración.
+        lastKnownIntersectionId = currentIntersectionId;
     }
 
-    private void updateIntersectionFlags() {
-        if (highwayController == null || straightPathIntersections == null || straightPathIntersections.isEmpty()
-                || nextStraightIntersectionIndex >= straightPathIntersections.size()) {
-            return;
+    private int getMyCurrentIntersectionId() {
+        for (int i = 1; i <= 4; i++) {
+            double centerX = highwayController.getIntersectionCenterX(i, highwayController.getSimulationPaneWidth());
+            double width = highwayController.getIntersectionWidth();
+            if (this.x > centerX - width / 2 && this.x < centerX + width / 2) {
+                return i;
+            }
         }
+        return -1;
+    }
 
-        int currentTargetIntersectionId = straightPathIntersections.get(nextStraightIntersectionIndex);
-        double intersectionCenterX = highwayController.getIntersectionCenterX(currentTargetIntersectionId,
-                highwayController.getSimulationPaneWidth());
+    private boolean isApproachingTrafficLight() {
+        return trafficLightPath != null && nextTrafficLightIndex < trafficLightPath.size();
+    }
 
-        double iWidth = highwayController.getIntersectionWidth();
+    private void calculateTrafficLightPath() {
+        trafficLightPath = new ArrayList<>();
+        int finalIntersectionId = (getTargetIntersection() != null) ? getTargetIntersection().getId() : 0;
 
-        boolean hasPassed = (this.origin == Direction.WEST && this.x > intersectionCenterX + iWidth / 2) ||
-                (this.origin == Direction.EAST && this.x < intersectionCenterX - iWidth / 2);
-
-        if (hasPassed) {
-            highwayController.deregisterApproachingVehicle(currentTargetIntersectionId, this);
-            nextStraightIntersectionIndex++;
-            if (nextStraightIntersectionIndex < straightPathIntersections.size()) {
-                int nextIntersectionId = straightPathIntersections.get(nextStraightIntersectionIndex);
-                highwayController.registerApproachingVehicle(nextIntersectionId, this);
+        if (origin == Direction.WEST) {
+            if (destination == Direction.STRAIGHT || destination == Direction.U_TURN_CONTINUATION) {
+                if (getX() < highwayController.getIntersectionCenterX(2, highwayController.getSimulationPaneWidth()))
+                    trafficLightPath.add(3);
+                if (getX() < highwayController.getIntersectionCenterX(3, highwayController.getSimulationPaneWidth()))
+                    trafficLightPath.add(5);
+                if (getX() < highwayController.getIntersectionCenterX(4, highwayController.getSimulationPaneWidth()))
+                    trafficLightPath.add(6);
+            } else {
+                if (finalIntersectionId >= 2)
+                    trafficLightPath.add(3);
+                if (finalIntersectionId >= 3)
+                    trafficLightPath.add(5);
+                if (finalIntersectionId >= 4)
+                    trafficLightPath.add(6);
+            }
+        } else {
+            if (destination == Direction.STRAIGHT || destination == Direction.U_TURN_CONTINUATION) {
+                if (getX() > highwayController.getIntersectionCenterX(3, highwayController.getSimulationPaneWidth()))
+                    trafficLightPath.add(4);
+                if (getX() > highwayController.getIntersectionCenterX(2, highwayController.getSimulationPaneWidth()))
+                    trafficLightPath.add(2);
+                if (getX() > highwayController.getIntersectionCenterX(1, highwayController.getSimulationPaneWidth()))
+                    trafficLightPath.add(1);
+            } else {
+                if (finalIntersectionId <= 3)
+                    trafficLightPath.add(4);
+                if (finalIntersectionId <= 2)
+                    trafficLightPath.add(2);
+                if (finalIntersectionId <= 1)
+                    trafficLightPath.add(1);
             }
         }
     }
@@ -266,9 +320,6 @@ public class Vehicle implements Runnable {
 
     private void moveTo(Point2D target, boolean emergency) {
         double currentSpeed = emergency ? this.emergencyClearSpeed : this.normalSpeed;
-        if (highwayController != null) {
-            currentSpeed = this.normalSpeed + 0.2;
-        }
 
         if (distanceTo(target) < currentSpeed) {
             this.x = target.getX();
@@ -301,7 +352,7 @@ public class Vehicle implements Runnable {
         }
     }
 
-    private double distanceTo(Point2D target) {
+    public double distanceTo(Point2D target) {
         return Math.sqrt(Math.pow(target.getX() - x, 2) + Math.pow(target.getY() - y, 2));
     }
 
